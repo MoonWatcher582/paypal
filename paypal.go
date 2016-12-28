@@ -135,7 +135,7 @@ func (pClient *PayPalClient) PerformRequest(values url.Values) (*PayPalResponse,
 	return response, err
 }
 
-func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount float64, currencyCode, billingAgreementDescription returnUrl, cancelUrl string, goods []PayPalDigitalGoods) (*PayPalResponse, error) {
+func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount float64, currencyCode, billingAgreementDescription, returnUrl, cancelUrl string, goods []PayPalDigitalGood) (*PayPalResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "SetExpressCheckout")
 	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", paymentAmount))
