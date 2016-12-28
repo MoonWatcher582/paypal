@@ -13,7 +13,7 @@ const (
 	NVP_PRODUCTION_URL      = "https://api-3t.paypal.com/nvp"
 	CHECKOUT_SANDBOX_URL    = "https://www.sandbox.paypal.com/cgi-bin/webscr"
 	CHECKOUT_PRODUCTION_URL = "https://www.paypal.com/cgi-bin/webscr"
-	NVP_VERSION             = "84"
+	NVP_VERSION             = "86"
 )
 
 type PayPalClient struct {
@@ -31,13 +31,15 @@ type PayPalDigitalGood struct {
 }
 
 type PayPalResponse struct {
-	Ack           string
-	CorrelationId string
-	Timestamp     string
-	Version       string
-	Build         string
-	Values        url.Values
-	usedSandbox   bool
+	Ack                string
+	CorrelationId      string
+	Timestamp          string
+	Version            string
+	Build              string
+	Token              string
+	BillingAgreementId string
+	Values             url.Values
+	usedSandbox        bool
 }
 
 type PayPalError struct {
@@ -117,6 +119,8 @@ func (pClient *PayPalClient) PerformRequest(values url.Values) (*PayPalResponse,
 		response.Timestamp = responseValues.Get("TIMESTAMP")
 		response.Version = responseValues.Get("VERSION")
 		response.Build = responseValues.Get("2975009")
+		response.Token = responseValues.Get("TOKEN")
+		response.BillingAgreementId = responseValues.Get("BILLINGAGREEMENTID")
 		response.Values = responseValues
 
 		errorCode := responseValues.Get("L_ERRORCODE0")
@@ -139,13 +143,12 @@ func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount fl
 	values := url.Values{}
 	values.Set("METHOD", "SetExpressCheckout")
 	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", paymentAmount))
-	values.Add("PAYMENTREQUEST_0_PAYMENTACTION", "Sale")
+	values.Add("PAYMENTREQUEST_0_PAYMENTACTION", "AUTHORIZATION")
 	values.Add("PAYMENTREQUEST_0_CURRENCYCODE", currencyCode)
 	values.Add("RETURNURL", returnUrl)
 	values.Add("CANCELURL", cancelUrl)
-	values.Add("REQCONFIRMSHIPPING", "0")
 	values.Add("NOSHIPPING", "1")
-	values.Add("SOLUTIONTYPE", "Sole")
+	values.Add("REQCONFIRMSHIPPING", "0")
 	values.Add("L_BILLINGTYPE0", "MerchantInitiatedBilling")
 	values.Add("L_BILLINGAGREEMENTDESCRIPTION0", billingAgreementDescription)
 
@@ -181,6 +184,14 @@ func (pClient *PayPalClient) SetExpressCheckoutDigitalGoods(paymentAmount float6
 		values.Add(fmt.Sprintf("%s%d", "L_PAYMENTREQUEST_0_QTY", i), fmt.Sprintf("%d", good.Quantity))
 		values.Add(fmt.Sprintf("%s%d", "L_PAYMENTREQUEST_0_ITEMCATEGORY", i), "Digital")
 	}
+
+	return pClient.PerformRequest(values)
+}
+
+func (pClient *PayPalClient) CreateBillingAgreement(token string) (*PayPalResponse, error) {
+	values := url.Values{}
+	values.Set("METHOD", "CreateBillingAgreement")
+	values.Add("TOKEN", token)
 
 	return pClient.PerformRequest(values)
 }
