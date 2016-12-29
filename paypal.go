@@ -188,6 +188,11 @@ func (pClient *PayPalClient) SetExpressCheckoutDigitalGoods(paymentAmount float6
 	return pClient.PerformRequest(values)
 }
 
+// Convenience function for Sale (Charge)
+func (pClient *PayPalClient) DoExpressCheckoutSale(token, payerId, currencyCode string, finalPaymentAmount float64) (*PayPalResponse, error) {
+	return pClient.DoExpressCheckoutPayment(token, payerId, "Sale", currencyCode, finalPaymentAmount)
+}
+
 func (pClient *PayPalClient) CreateBillingAgreement(token string) (*PayPalResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "CreateBillingAgreement")
@@ -196,9 +201,12 @@ func (pClient *PayPalClient) CreateBillingAgreement(token string) (*PayPalRespon
 	return pClient.PerformRequest(values)
 }
 
-// Convenience function for Sale (Charge)
-func (pClient *PayPalClient) DoExpressCheckoutSale(token, payerId, currencyCode string, finalPaymentAmount float64) (*PayPalResponse, error) {
-	return pClient.DoExpressCheckoutPayment(token, payerId, "Sale", currencyCode, finalPaymentAmount)
+func (pClient *PayPalClient) GetExpressCheckoutDetails(token string) (*PayPalResponse, error) {
+	values := url.Values{}
+	values.Set("METHOD", "GetExpressCheckoutDetails")
+	values.Add("TOKEN", token)
+
+	return pClient.PerformRequest(values)
 }
 
 // paymentType can be "Sale" or "Authorization" or "Order" (ship later)
@@ -214,9 +222,13 @@ func (pClient *PayPalClient) DoExpressCheckoutPayment(token, payerId, paymentTyp
 	return pClient.PerformRequest(values)
 }
 
-func (pClient *PayPalClient) GetExpressCheckoutDetails(token string) (*PayPalResponse, error) {
+// Note that the billingAgreementId must be URL-decoded
+func (pClient *PayPalClient) DoReferenceTransaction(billingAgreementId, paymentType string, finalPaymentAmount float64) (*PayPalResponse, error) {
 	values := url.Values{}
-	values.Add("TOKEN", token)
-	values.Set("METHOD", "GetExpressCheckoutDetails")
+	values.Set("METHOD", "DoReferenceTransaction")
+	values.Add("REFERENCEID", billingAgreementId)
+	values.Add("PAYMENTACTION", paymentType)
+	values.Add("AMT", fmt.Sprintf("%.2f", finalPaymentAmount))
+
 	return pClient.PerformRequest(values)
 }
