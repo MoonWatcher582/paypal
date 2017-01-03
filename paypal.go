@@ -30,6 +30,30 @@ type PayPalDigitalGood struct {
 	Quantity int16
 }
 
+type PaymentInfo struct {
+	TransactionId             string
+	ParentTransactionId       string
+	ReceiptId                 string
+	TransactionType           string // can be "cart" or "express-checkout"
+	PaymentType               string // can be "none", "echeck", or "instant"
+	OrderTime                 string // UTC/GMT
+	Amount                    float64
+	CurrencyCode              string
+	FeeAmount                 float64
+	SettleAmount              float64
+	TaxAmount                 float64
+	ExchangeRate              float64
+	PaymentStatus             string   // can be "None", "Cancel-Reversal", "Completed", "Denied", "Expired", "Failed", "In-Progress", "Partially-Refunded", "Pending", "Refunded", "Reversed", "Processed", or "Voided"
+	PendingReason             string   // can be "none", "address", "authorization", "echeck", "intl", "multi-currency", "order", "payment-review", "regulatory-review", "unilateral", "verify", or "other"; only returned if PaymentStatus == "Pending"
+	ReasonCode                string   // can be "none", "chargeback", "guarantee", "buyer-complaint", "refund", or "other"
+	ProtectionEligibility     string   // can be "Eligible", "PartiallyEligible", or "Ineligible"
+	ProtectionEligibilityType []string // can be "ItemNotReceivedEligible", "UnauthorizedPaymentEligible", or "Ineligible"
+	StoredId                  string
+	TerminalId                string
+	InstrumentCategory        int    // Possible values are 1, which represents PayPal credit
+	InstrumentId              string // Reserved for future use
+}
+
 type PayPalResponse struct {
 	Ack                string
 	CorrelationId      string
@@ -41,6 +65,69 @@ type PayPalResponse struct {
 	ReceiptId          string
 	Values             url.Values
 	usedSandbox        bool
+}
+
+type PayPalSetExpressCheckoutResponse struct {
+	PayPalResponse
+	Token string
+}
+
+type PayPalBillingAgreementResponse struct {
+	BillingAgreementId string
+	// Should this have a PayPalResponse?
+}
+
+type PayPalExpressCheckoutDetails struct {
+	PayPalResponse
+	Token                          string
+	PhoneNumber                    string
+	BillingAgreementAcceptedStatus string
+	CheckoutStatus                 string
+	PayerId                        string
+	Email                          string
+	PayerStatus                    string
+	FirstName                      string
+	LastName                       string
+	CountryCode                    string
+	// Shipping Info
+
+	//Billing Address
+
+	// Transaction Info
+}
+
+type PayPalExpressPaymentResponse struct {
+	PayPalResponse
+	Token                        string
+	BillingAgreementId           string
+	RedirectRequired             bool
+	Note                         string
+	MsgSubId                     string
+	SuccessPageRedirectRequested bool
+	PaymentsInfo                 []PaymentInfo
+
+	// User Options Info
+
+	// Error Info
+
+	// Seller Info
+
+	// Risk Info
+}
+
+type PayPalReferenceTransactionResponse struct {
+	PaymentInfo
+
+	AvsCode            rune
+	Cvv2Match          string
+	BillingAgreementId string
+	ReceiptId          string
+	Values             url.Values
+	usedSandbox        bool
+	FilterId           int
+	FilterName         string
+	PaymentAdviceCode  string
+	MsgSubId           string
 }
 
 type PayPalError struct {
