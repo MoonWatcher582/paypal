@@ -151,7 +151,7 @@ func (e *PayPalError) Error() string {
 	return message
 }
 
-func (r *PayPalResponse) CheckoutUrl() string {
+func (r *PayPalResponse) GetCheckoutUrl() string {
 	query := url.Values{}
 	query.Set("cmd", "_express-checkout")
 	query.Add("token", r.Values["TOKEN"][0])
