@@ -228,7 +228,7 @@ func (pClient *PayPalClient) PerformRequest(values url.Values) (*PayPalResponse,
 	return response, err
 }
 
-func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount float64, currencyCode, billingAgreementDescription, returnUrl, cancelUrl string, goods []PayPalDigitalGood) (*PayPalResponse, error) {
+func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount float64, currencyCode, billingAgreementDescription, returnUrl, cancelUrl string) (*PayPalResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "SetExpressCheckout")
 	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", paymentAmount))
@@ -240,15 +240,6 @@ func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount fl
 	values.Add("REQCONFIRMSHIPPING", "0")
 	values.Add("L_BILLINGTYPE0", "MerchantInitiatedBilling")
 	values.Add("L_BILLINGAGREEMENTDESCRIPTION0", billingAgreementDescription)
-
-	for i := 0; i < len(goods); i++ {
-		good := goods[i]
-
-		values.Add(fmt.Sprintf("%s%d", "L_PAYMENTREQUEST_0_NAME", i), good.Name)
-		values.Add(fmt.Sprintf("%s%d", "L_PAYMENTREQUEST_0_AMT", i), fmt.Sprintf("%.2f", good.Amount))
-		values.Add(fmt.Sprintf("%s%d", "L_PAYMENTREQUEST_0_QTY", i), fmt.Sprintf("%d", good.Quantity))
-		values.Add(fmt.Sprintf("%s%d", "L_PAYMENTREQUEST_0_ITEMCATEGORY", i), "Digital")
-	}
 
 	return pClient.PerformRequest(values)
 }
