@@ -64,6 +64,10 @@ type PayPalResponse struct {
 	BillingAgreementId string
 	TransactionId      string
 	ReceiptId          string
+	PayerId            string
+	FirstName          string
+	LastName           string
+	EmailAddress       string
 	Values             url.Values
 	usedSandbox        bool
 }
@@ -212,6 +216,10 @@ func (pClient *PayPalClient) PerformRequest(values url.Values) (*PayPalResponse,
 		response.BillingAgreementId = responseValues.Get("BILLINGAGREEMENTID")
 		response.ReceiptId = responseValues.Get("RECEIPTID")
 		response.TransactionId = responseValues.Get("TRANSACTIONID")
+		response.PayerId = responseValues.Get("PAYERID")
+		response.FirstName = responseValues.Get("FIRSTNAME")
+		response.LastName = responseValues.Get("LASTNAME")
+		response.EmailAddress = responseValues.Get("EMAIL")
 		response.Values = responseValues
 
 		errorCode := responseValues.Get("L_ERRORCODE0")
