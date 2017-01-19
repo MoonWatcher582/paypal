@@ -135,7 +135,6 @@ type PayPalReferenceTransactionResponse struct {
 	AvsCode            string
 	Cvv2Match          string
 	BillingAgreementId string
-	ReceiptId          string
 	PaymentAdviceCode  string
 	MsgSubId           string
 }
@@ -406,9 +405,31 @@ func (pClient *PayPalClient) DoReferenceTransaction(billingAgreementId, paymentT
 		AvsCode:            resp.Values.Get("AVSCODE"),
 		Cvv2Match:          resp.Values.Get("CVV2MATCH"),
 		BillingAgreementId: resp.Values.Get("BILLINGAGREEMENTID"),
-		ReceiptId:          resp.Values.Get("RECEIPTID"),
 		PaymentAdviceCode:  resp.Values.Get("PAYMENTADVICECODE"),
 		MsgSubId:           resp.Values.Get("MSGSUBID"),
+		PaymentInfo: PaymentInfo{
+			TransactionId:             resp.Values.Get("TRANSACTIONID"),
+			ParentTransactionId:       resp.Values.Get("PARENTTRANSACTIONID"),
+			ReceiptId:                 resp.Values.Get("RECEIPTID"),
+			TransactionType:           resp.Values.Get("TRANSACTIONTYPE"),
+			PaymentType:               resp.Values.Get("PAYMENTTYPE"),
+			OrderTime:                 resp.Values.Get("ORDERTIME"),
+			Amount:                    resp.Values.Get("AMT"),
+			CurrencyCode:              resp.Values.Get("CURRENCYCODE"),
+			FeeAmount:                 resp.Values.Get("FEEAMT"),
+			SettleAmount:              resp.Values.Get("SETTLEAMT"),
+			TaxAmount:                 resp.Values.Get("TAXAMT"),
+			ExchangeRate:              resp.Values.Get("EXCHANGERATE"),
+			PaymentStatus:             resp.Values.Get("PAYMENTSTATUS"),
+			PendingReason:             resp.Values.Get("PENDINGREASON"),
+			ReasonCode:                resp.Values.Get("REASONCODE"),
+			ProtectionEligibility:     resp.Values.Get("PROTECTIONELIGIBILITY"),
+			ProtectionEligibilityType: resp.Values.Get("PROTECTIONELIGIBILITYTYPE"),
+			StoreId:                   resp.Values.Get("STOREID"),
+			TerminalId:                resp.Values.Get("TERMINALID"),
+			InstrumentCategory:        resp.Values.Get("INSTRUMENTCATEGORY"),
+			InstrumentId:              resp.Values.Get("INSTRUMENTID"),
+		},
 	}, nil
 }
 
