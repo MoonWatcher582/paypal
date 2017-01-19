@@ -49,7 +49,7 @@ type PaymentInfo struct {
 	ReasonCode                string   // can be "none", "chargeback", "guarantee", "buyer-complaint", "refund", or "other"
 	ProtectionEligibility     string   // can be "Eligible", "PartiallyEligible", or "Ineligible"
 	ProtectionEligibilityType []string // can be "ItemNotReceivedEligible", "UnauthorizedPaymentEligible", or "Ineligible"
-	StoredId                  string
+	StoreId                   string
 	TerminalId                string
 	InstrumentCategory        int    // Possible values are 1, which represents PayPal credit
 	InstrumentId              string // Reserved for future use
@@ -400,6 +400,16 @@ func (pClient *PayPalClient) DoReferenceTransaction(billingAgreementId, paymentT
 		return nil, err
 	}
 
+	amt, _ := strconv.ParseFloat(resp.Values.Get("AMT"), 64)
+	feeAmt, _ := strconv.ParseFloat(resp.Values.Get("FEEAMT"), 64)
+	settleAmt, _ := strconv.ParseFloat(resp.Values.Get("SETTLEAMT"), 64)
+	taxAmt, _ := strconv.ParseFloat(resp.Values.Get("TAXAMT"), 64)
+	exchangeRate, _ := strconv.ParseFloat(resp.Values.Get("EXCHANGERATE"), 64)
+
+	instrumentCategory, _ := strconv.Atoi(resp.Values.Get("INSTRUMENTCATEGORY"))
+
+	protectionEligibilityTypes := strings.Split(resp.Values.Get("PROTECTIONELIGIBILITYTYPE"), ",")
+
 	return &PayPalReferenceTransactionResponse{
 		PayPalResponse:     *resp,
 		AvsCode:            resp.Values.Get("AVSCODE"),
@@ -414,20 +424,20 @@ func (pClient *PayPalClient) DoReferenceTransaction(billingAgreementId, paymentT
 			TransactionType:           resp.Values.Get("TRANSACTIONTYPE"),
 			PaymentType:               resp.Values.Get("PAYMENTTYPE"),
 			OrderTime:                 resp.Values.Get("ORDERTIME"),
-			Amount:                    resp.Values.Get("AMT"),
+			Amount:                    amt,
 			CurrencyCode:              resp.Values.Get("CURRENCYCODE"),
-			FeeAmount:                 resp.Values.Get("FEEAMT"),
-			SettleAmount:              resp.Values.Get("SETTLEAMT"),
-			TaxAmount:                 resp.Values.Get("TAXAMT"),
-			ExchangeRate:              resp.Values.Get("EXCHANGERATE"),
+			FeeAmount:                 feeAmt,
+			SettleAmount:              settleAmt,
+			TaxAmount:                 taxAmt,
+			ExchangeRate:              exchangeRate,
 			PaymentStatus:             resp.Values.Get("PAYMENTSTATUS"),
 			PendingReason:             resp.Values.Get("PENDINGREASON"),
 			ReasonCode:                resp.Values.Get("REASONCODE"),
 			ProtectionEligibility:     resp.Values.Get("PROTECTIONELIGIBILITY"),
-			ProtectionEligibilityType: resp.Values.Get("PROTECTIONELIGIBILITYTYPE"),
+			ProtectionEligibilityType: protectionEligibilityTypes,
 			StoreId:                   resp.Values.Get("STOREID"),
 			TerminalId:                resp.Values.Get("TERMINALID"),
-			InstrumentCategory:        resp.Values.Get("INSTRUMENTCATEGORY"),
+			InstrumentCategory:        instrumentCategory,
 			InstrumentId:              resp.Values.Get("INSTRUMENTID"),
 		},
 	}, nil
