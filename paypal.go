@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -54,55 +55,62 @@ type PaymentInfo struct {
 	InstrumentId              string // Reserved for future use
 }
 
+type AddressInfo struct {
+	Name              string
+	Street            string
+	Street2           string
+	City              string
+	State             string
+	Zip               string
+	CountryCode       string
+	Country           string
+	PhoneNumber       string
+	Status            string // none, Confirmed, or Unconfirmed
+	NormatilzedStatus string // For Brazil only: none, Normalized, Unnormalized, or UserPrefered
+}
+
 type PayPalResponse struct {
-	Ack                string
-	CorrelationId      string
-	Timestamp          string
-	Version            string
-	Build              string
-	Token              string
-	BillingAgreementId string
-	TransactionId      string
-	ReceiptId          string
-	PayerId            string
-	FirstName          string
-	LastName           string
-	EmailAddress       string
-	Values             url.Values
-	usedSandbox        bool
+	Ack           string
+	CorrelationId string
+	Timestamp     string
+	Version       string
+	Build         string
+	Values        url.Values
+	usedSandbox   bool
 }
 
 type PayPalSetExpressCheckoutResponse struct {
 	PayPalResponse
+
 	Token string
 }
 
 type PayPalBillingAgreementResponse struct {
+	PayPalResponse
+
 	BillingAgreementId string
-	// Should this have a PayPalResponse?
 }
 
 type PayPalExpressCheckoutDetails struct {
 	PayPalResponse
-	Token                          string
-	PhoneNumber                    string
-	BillingAgreementAcceptedStatus string
-	CheckoutStatus                 string
-	PayerId                        string
-	Email                          string
-	PayerStatus                    string
-	FirstName                      string
-	LastName                       string
-	CountryCode                    string
-	// Shipping Info
 
-	//Billing Address
-
-	// Transaction Info
+	Token                    string
+	PhoneNumber              string
+	BillingAgreementAccepted bool
+	CheckoutStatus           string
+	PayerID                  string
+	Email                    string
+	PayerStatusVerified      bool
+	FirstName                string
+	LastName                 string
+	CountryCode              string
+	ShippingAddresses        []AddressInfo
+	PaymentsInfo             []PaymentInfo
 }
 
 type PayPalExpressPaymentResponse struct {
 	PayPalResponse
+
 	Token                        string
 	BillingAgreementId           string
 	RedirectRequired             bool
@@ -121,18 +129,29 @@ type PayPalExpressPaymentResponse struct {
 }
 
 type PayPalReferenceTransactionResponse struct {
+	PayPalResponse
 	PaymentInfo
 
-	AvsCode            rune
+	AvsCode            string
 	Cvv2Match          string
 	BillingAgreementId string
 	ReceiptId          string
-	Values             url.Values
-	usedSandbox        bool
-	FilterId           int
-	FilterName         string
 	PaymentAdviceCode  string
 	MsgSubId           string
+}
+
+type PayPalRefundTransactionResponse struct {
+	PayPalResponse
+
+	RefundTransactionId string
+	RefundFeeAmount     float64 // 2.9% of the refund + $.30
+	GrossRefundAmount   float64 // Amount refunded from this request
+	NetRefundAmount     float64 // GrossRefundAmt - RefundFeeAmt
+	TotalRefundAmount   float64 // Total amount refunded for this transaction
+	CurrencyCode        string
+	RefundStatus        string // instant, delayed, or none if transaction fails
+	PendingReason       string // none, echeck, or regulatoryreview
+	MsgSubId            string
 }
 
 type PayPalError struct {
@@ -212,14 +231,6 @@ func (pClient *PayPalClient) PerformRequest(values url.Values) (*PayPalResponse,
 		response.Timestamp = responseValues.Get("TIMESTAMP")
 		response.Version = responseValues.Get("VERSION")
 		response.Build = responseValues.Get("2975009")
-		response.Token = responseValues.Get("TOKEN")
-		response.BillingAgreementId = responseValues.Get("BILLINGAGREEMENTID")
-		response.ReceiptId = responseValues.Get("RECEIPTID")
-		response.TransactionId = responseValues.Get("TRANSACTIONID")
-		response.PayerId = responseValues.Get("PAYERID")
-		response.FirstName = responseValues.Get("FIRSTNAME")
-		response.LastName = responseValues.Get("LASTNAME")
-		response.EmailAddress = responseValues.Get("EMAIL")
 		response.Values = responseValues
 
 		errorCode := responseValues.Get("L_ERRORCODE0")
@@ -238,7 +249,7 @@ func (pClient *PayPalClient) PerformRequest(values url.Values) (*PayPalResponse,
 	return response, err
 }
 
-func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount float64, currencyCode, billingAgreementDescription, returnUrl, cancelUrl string) (*PayPalResponse, error) {
+func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount float64, currencyCode, billingAgreementDescription, returnUrl, cancelUrl string) (*PayPalSetExpressCheckoutResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "SetExpressCheckout")
 	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", paymentAmount))
@@ -251,10 +262,18 @@ func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount fl
 	values.Add("L_BILLINGTYPE0", "MerchantInitiatedBilling")
 	values.Add("L_BILLINGAGREEMENTDESCRIPTION0", billingAgreementDescription)
 
-	return pClient.PerformRequest(values)
+	resp, err := pClient.PerformRequest(values)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PayPalSetExpressCheckoutResponse{
+		PayPalResponse: *resp,
+		Token:          resp.Values.Get("TOKEN"),
+	}, nil
 }
 
-func (pClient *PayPalClient) SetExpressCheckoutDigitalGoods(paymentAmount float64, currencyCode, returnUrl, cancelUrl string, goods []PayPalDigitalGood) (*PayPalResponse, error) {
+func (pClient *PayPalClient) SetExpressCheckoutDigitalGoods(paymentAmount float64, currencyCode, returnUrl, cancelUrl string, goods []PayPalDigitalGood) (*PayPalSetExpressCheckoutResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "SetExpressCheckout")
 	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", paymentAmount))
@@ -275,50 +294,197 @@ func (pClient *PayPalClient) SetExpressCheckoutDigitalGoods(paymentAmount float6
 		values.Add(fmt.Sprintf("%s%d", "L_PAYMENTREQUEST_0_ITEMCATEGORY", i), "Digital")
 	}
 
-	return pClient.PerformRequest(values)
+	resp, err := pClient.PerformRequest(values)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PayPalSetExpressCheckoutResponse{
+		PayPalResponse: *resp,
+		Token:          resp.Values.Get("TOKEN"),
+	}, nil
 }
 
-// Convenience function for Sale (Charge)
-func (pClient *PayPalClient) DoExpressCheckoutSale(token, payerId, currencyCode string, finalPaymentAmount float64) (*PayPalResponse, error) {
-	return pClient.DoExpressCheckoutPayment(token, payerId, "Sale", currencyCode, finalPaymentAmount)
-}
-
-func (pClient *PayPalClient) CreateBillingAgreement(token string) (*PayPalResponse, error) {
+func (pClient *PayPalClient) CreateBillingAgreement(token string) (*PayPalBillingAgreementResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "CreateBillingAgreement")
 	values.Add("TOKEN", token)
 
-	return pClient.PerformRequest(values)
+	resp, err := pClient.PerformRequest(values)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PayPalBillingAgreementResponse{
+		PayPalResponse:     *resp,
+		BillingAgreementId: resp.Values.Get("BILLINGAGREEMENTID"),
+	}, nil
 }
 
-func (pClient *PayPalClient) GetExpressCheckoutDetails(token string) (*PayPalResponse, error) {
+func (pClient *PayPalClient) GetExpressCheckoutDetails(token string) (*PayPalExpressCheckoutDetails, error) {
 	values := url.Values{}
 	values.Set("METHOD", "GetExpressCheckoutDetails")
 	values.Add("TOKEN", token)
 
-	return pClient.PerformRequest(values)
+	resp, err := pClient.PerformRequest(values)
+	if err != nil {
+		return nil, err
+	}
+
+	// PaymentsInfo                   []PaymentInfo
+
+	r := &PayPalExpressCheckoutDetails{
+		PayPalResponse: *resp,
+		Token:          resp.Values.Get("TOKEN"),
+		PhoneNumber:    resp.Values.Get("PHONENUM"),
+		CheckoutStatus: resp.Values.Get("CHECKOUTSTATUS"),
+		PayerID:        resp.Values.Get("PAYERID"),
+		Email:          resp.Values.Get("EMAIL"),
+		FirstName:      resp.Values.Get("FIRSTNAME"),
+		LastName:       resp.Values.Get("LASTNAME"),
+		CountryCode:    resp.Values.Get("COUNTRYCODE"),
+	}
+
+	if resp.Values.Get("BILLINGAGREEMENTACCEPTEDSTATUS") == "1" {
+		r.BillingAgreementAccepted = true
+	}
+
+	if resp.Values.Get("PAYERSTATUS") == "verified" {
+		r.PayerStatusVerified = true
+	}
+
+	r.ShippingAddresses = make([]AddressInfo, 10)
+	for i := 0; i < 10; i++ {
+		idx := fmt.Sprintf("%d", i)
+		address := AddressInfo{
+			Name:              resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTONAME"),
+			Street:            resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOSTREET"),
+			Street2:           resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOSTREET2"),
+			City:              resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOCITY"),
+			State:             resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOSTATE"),
+			Zip:               resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOZIP"),
+			CountryCode:       resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOCOUNTRYCODE"),
+			Country:           resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOCOUNTRYNAME"),
+			PhoneNumber:       resp.Values.Get("PAYMENTREQUEST_" + idx + "_SHIPTOPHONENUM"),
+			Status:            resp.Values.Get("PAYMENTREQUEST_" + idx + "_ADDRESSSTATUS"),
+			NormatilzedStatus: resp.Values.Get("PAYMENTREQUEST_" + idx + "_ADDRESSNORMALIZATIONSTATUS"),
+		}
+		r.ShippingAddresses = append(r.ShippingAddresses, address)
+	}
+
+	return r, nil
 }
 
-// paymentType can be "Sale" or "Authorization" or "Order" (ship later)
-func (pClient *PayPalClient) DoExpressCheckoutPayment(token, payerId, paymentType, currencyCode string, finalPaymentAmount float64) (*PayPalResponse, error) {
-	values := url.Values{}
-	values.Set("METHOD", "DoExpressCheckoutPayment")
-	values.Add("TOKEN", token)
-	values.Add("PAYERID", payerId)
-	values.Add("PAYMENTREQUEST_0_PAYMENTACTION", paymentType)
-	values.Add("PAYMENTREQUEST_0_CURRENCYCODE", currencyCode)
-	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", finalPaymentAmount))
+// // paymentType can be "Sale" or "Authorization" or "Order" (ship later)
+// func (pClient *PayPalClient) DoExpressCheckoutPayment(token, payerID, paymentType, currencyCode string, finalPaymentAmount float64) (*PayPalExpressPaymentResponse, error) {
+// 	values := url.Values{}
+// 	values.Set("METHOD", "DoExpressCheckoutPayment")
+// 	values.Add("TOKEN", token)
+// 	values.Add("PAYERID", payerID)
+// 	values.Add("PAYMENTREQUEST_0_PAYMENTACTION", paymentType)
+// 	values.Add("PAYMENTREQUEST_0_CURRENCYCODE", currencyCode)
+// 	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", finalPaymentAmount))
 
-	return pClient.PerformRequest(values)
-}
+// 	return pClient.PerformRequest(values)
+// }
 
 // Note that the billingAgreementId must be URL-decoded
-func (pClient *PayPalClient) DoReferenceTransaction(billingAgreementId, paymentType string, finalPaymentAmount float64) (*PayPalResponse, error) {
+func (pClient *PayPalClient) DoReferenceTransaction(billingAgreementId, paymentType string, finalPaymentAmount float64) (*PayPalReferenceTransactionResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "DoReferenceTransaction")
 	values.Add("REFERENCEID", billingAgreementId)
 	values.Add("PAYMENTACTION", paymentType)
 	values.Add("AMT", fmt.Sprintf("%.2f", finalPaymentAmount))
+
+	resp, err := pClient.PerformRequest(values)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PayPalReferenceTransactionResponse{
+		PayPalResponse:     *resp,
+		AvsCode:            resp.Values.Get("AVSCODE"),
+		Cvv2Match:          resp.Values.Get("CVV2MATCH"),
+		BillingAgreementId: resp.Values.Get("BILLINGAGREEMENTID"),
+		ReceiptId:          resp.Values.Get("RECEIPTID"),
+		PaymentAdviceCode:  resp.Values.Get("PAYMENTADVICECODE"),
+		MsgSubId:           resp.Values.Get("MSGSUBID"),
+	}, nil
+}
+
+// Point-of-Sale transactions not supported currently
+func (pClient *PayPalClient) RefundTransaction(refundAmount, shippingAmount, taxAmount float64, transactionId, invoiceId, msgSubId, currencyCode string, partialRefund bool) (*PayPalRefundTransactionResponse, error) {
+	values := url.Values{}
+	values.Set("METHOD", "RefundTransaction")
+	values.Add("TRANSACTIONID", transactionId)
+	values.Add("INVOICEID", invoiceId)
+	values.Add("SHIPPINGAMT", fmt.Sprintf("%.2f", shippingAmount))
+	values.Add("TAXAMT", fmt.Sprintf("%.2f", taxAmount))
+	values.Add("MSGSUBID", msgSubId)
+
+	refundType := "Full"
+	if partialRefund {
+		refundType = "Partial"
+	}
+	values.Add("REFUNDTYPE", refundType)
+
+	if currencyCode != "" {
+		values.Add("CURRENCYCODE", currencyCode)
+	}
+
+	if partialRefund {
+		values.Add("AMT", fmt.Sprintf("%.2f", refundAmount))
+	}
+
+	resp, err := pClient.PerformRequest(values)
+	if err != nil {
+		return nil, err
+	}
+
+	refundFee, _ := strconv.ParseFloat(resp.Values.Get("FEEREFUNDAMT"), 64)
+	netRefund, _ := strconv.ParseFloat(resp.Values.Get("NETREFUNDAMT"), 64)
+	grossRefund, _ := strconv.ParseFloat(resp.Values.Get("GROSSREFUNDAMT"), 64)
+	totalRefund, _ := strconv.ParseFloat(resp.Values.Get("TOTALREFUNDAMT"), 64)
+
+	return &PayPalRefundTransactionResponse{
+		PayPalResponse:      *resp,
+		RefundTransactionId: resp.Values.Get("REFUNDTRANSACTIONID"),
+		RefundFeeAmount:     refundFee,
+		NetRefundAmount:     netRefund,
+		GrossRefundAmount:   grossRefund,
+		TotalRefundAmount:   totalRefund,
+		CurrencyCode:        resp.Values.Get("CURRENCYCODE"),
+		RefundStatus:        resp.Values.Get("REFUNDSTATUS"),
+		PendingReason:       resp.Values.Get("PENDINGREASON"),
+		MsgSubId:            resp.Values.Get("MSGSUBID"),
+	}, nil
+}
+
+// MassPay only returns a standard response
+// Only supports one transaction per request currently
+func (pClient *PayPalClient) MassPay(paymentAmount float64, emailSubject, currencyCode, trackingId, note, receiverType, identifier string) (*PayPalResponse, error) {
+	values := url.Values{}
+	values.Set("METHOD", "MassPay")
+	values.Add("EMAILSUBJECT", emailSubject)
+	values.Add("CURRENCYCODE", currencyCode)
+	values.Add("L_AMT0", fmt.Sprintf("%.2f", paymentAmount))
+	values.Add("L_UNIQUEID0", trackingId)
+	values.Add("L_NOTE0", note)
+
+	switch receiverType {
+	case "EmailAddress":
+		values.Add("L_EMAIL0", identifier)
+	case "UserId":
+		values.Add("L_RECEIVERID0", identifier)
+	case "PhoneNumber":
+		values.Add("L_RECEIVERPHONE0", identifier)
+	default:
+		return nil, &PayPalError{
+			ShortMessage: "Invalid receiver type for mass pay! Must be UserId, EmailAddress, or PhoneNumber",
+		}
+	}
+
+	values.Add("RECEIVERTYPE", receiverType)
 
 	return pClient.PerformRequest(values)
 }
