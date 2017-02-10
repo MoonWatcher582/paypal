@@ -248,9 +248,10 @@ func (pClient *PayPalClient) PerformRequest(values url.Values) (*PayPalResponse,
 	return response, err
 }
 
-func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(paymentAmount float64, currencyCode, billingAgreementDescription, returnUrl, cancelUrl string) (*PayPalSetExpressCheckoutResponse, error) {
+func (pClient *PayPalClient) SetExpressCheckoutBillingAgreement(maxAmt, paymentAmount float64, currencyCode, billingAgreementDescription, returnUrl, cancelUrl string) (*PayPalSetExpressCheckoutResponse, error) {
 	values := url.Values{}
 	values.Set("METHOD", "SetExpressCheckout")
+	values.Add("MAXAMT", fmt.Sprintf("%.2f", maxAmt))
 	values.Add("PAYMENTREQUEST_0_AMT", fmt.Sprintf("%.2f", paymentAmount))
 	values.Add("PAYMENTREQUEST_0_PAYMENTACTION", "AUTHORIZATION")
 	values.Add("PAYMENTREQUEST_0_CURRENCYCODE", currencyCode)
